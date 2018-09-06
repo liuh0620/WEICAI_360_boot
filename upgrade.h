@@ -5,10 +5,11 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include "types.h"
+#include "queue.h"
 
 #define MAX_REC_SIZE 2060
 #define MAX_SEND_SIZE 1024
-#define MSG_HEAD             0xF0
+#define MSG_HEAD             0xF0u
 #define MSG_DATA_OFFSET      7
 #define MSG_LEN_OFFSET       6
 #define MSG_CMD_OFFSET       1
@@ -16,14 +17,12 @@
 #define MSG_HEAD_SIZE        7
 #define MSG_FRAME_OTHER_SIZE        8
 
-
 #define COMMUNICATION_FRAMES  0x01  
 #define DATA_FRAMES           0x02 
 
 #define START_UPDATE_CMD      0x01
 #define SEND_PACKAGE_NUM_CMD      0x02
 #define SEND_PACKAGE_DONE_CMD         0x03
-
 
 #define  ARM_READY_CMD            0x01
 #define SEND_PACKAGE_NUM_ACK_CMD      0x02
@@ -80,19 +79,14 @@
 #define CM_UPDATE_ARM_ABORT                0x39
 
 
-
-
-
-#define SUCCEED_ACK          0x01
-#define FAILED_ACK           0x00
+#define SUCCEED_ACK          0x01u
+#define FAILED_ACK           0x00u
 #define VALID_FLAG_PATH              "/home/chinagps/app_valid_flag.ini"
 #define UPDATE_APP_PATH              "/home/chinagps/update/t6a_app"
 #define UPDATE_KERNEL_PATH           "/home/chinagps/update/zImage"
 #define UPDATE_DTB_PATH              "/home/chinagps/update/imx6q-sabresd.dtb"
 #define UPDATE_SUANFA_PATH           "/home/chinagps/update/suanfa.tar.bz2"
 #define UPDATE_UBOOT_PATH            "/home/chinagps/update/u-boot-imx6qsabresd_sd.imx"
-
-
 
 #define UPDATE_APP_PATCH             "/home/chinagps/update/t6a_app.patch"
 #define UPDATE_KERNEL_PATCH          "/home/chinagps/update/zImage.patch"
@@ -101,5 +95,71 @@
 #define UPDATE_UBOOT_PATCH           "/home/chinagps/update/u-boot-imx6qsabresd_sd.imx.patch"
 
 
-int SendPkgStruct(uchar cmd,uint Hid,char IsAck, uchar* msg,uchar msgLen);
+
+typedef enum cCodeType{
+	TImx6App=0,
+    TArithmetic,
+    Tkernel,
+    TDtb,
+    TUboot,
+}CodeType;
+
+typedef  enum {
+    T_START,
+    T_CMD,
+    T_HID,
+    T_LEN,
+    T_DATA,
+    T_LRC,
+}RecType;
+
+
+typedef enum cInterval{
+	T100=0,
+    T1000,
+    T6000,
+    T10000,
+}AckInterval;
+
+typedef struct cUpdateInfo{
+   uint8_t init;      
+   uint8_t diff_update;       //1 差分升级    0 整包升级
+   CodeType code_type;      
+   uint32_t packageNum;       //包序号
+   uint32_t  filesize;          //文件总长度
+   uint32_t packageCount;         //包总个数
+   uint32_t packageSize;        //包大小
+   uint32_t crc32;
+   uint32_t alreadyRecPkg;
+   WriteFileInfo writeFileInfo;
+   Queue queue;
+}UpdateInfo;
+
+
+uint32_t fwriten(const int32_t fd, void *const vptr, const uint32_t n);
+void WriteDataFull(void);
+void WriteDataByInterval(void);
+uint32_t calc_crc(const int32_t fd, uint32_t count);
+int32_t WriteAppFlag(const uint8_t u);
+int32_t ProcessSendDone(const uint32_t Hid, const uint8_t* const pMsgData);
+int32_t setCom(const char *const Dev);
+uint32_t WriteCom(char* const buf,const uint32_t n);
+uint32_t ReadCom(char* buf);
+int32_t ReadOneChar(char* const c);
+uint32_t ReadOneFrame(char* const buf);
+void flush_buf(const int32_t type);
+uint8_t* arrchr(uint8_t* pBuf,const uint8_t ch,uint32_t size);
+void ParseGeneralAckCmd(const uint8_t* const msg);
+char* memstr(char* const full_data, const int32_t full_data_len, const char* const substr);
+void SendPkgStruct(const uint8_t cmd, const uint32_t Hid, const signed char IsAck, const uint8_t* const msg,const uint8_t msgLen);
+void SendGeneralAck(const uint8_t cmd,const uint32_t Hid,const uint8_t isSucc);
+void ParseProtocol(uint8_t* const msgData, const uint8_t cmd);
+void ProcessComHandle(char* const buf ,const uint32_t size);
+int32_t Filed_Filename(void);
+int32_t UpdateARM_Start(const uint32_t Hid, uint8_t* const msg);
+int32_t UpdateARM_DataTrans(const uint32_t Hid, uint8_t* const pMsgData);
+int32_t UpdateARM_DataTrans_End(const uint32_t Hid,const uint8_t* const pMsgData);
+int32_t UpdateARM_Abort(void);
+void tty1_com_thread(void);
+
 #endif
